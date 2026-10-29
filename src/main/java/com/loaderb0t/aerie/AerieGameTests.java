@@ -1,6 +1,10 @@
 package com.loaderb0t.aerie;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
@@ -11,6 +15,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
+import java.util.UUID;
 
 /** In-world checks, run headless with `gradlew runGameTestServer`. Only active when the aerie namespace is enabled. */
 @GameTestHolder(AerieMod.MOD_ID)
@@ -34,6 +39,105 @@ public final class AerieGameTests {
             helper.assertTrue(loot != LootTable.EMPTY, "missing loot table " + block);
         }
         helper.assertTrue(AerieRegistry.CORE.get().defaultBlockState().is(nonMovable), "core is not create:non_movable");
+        helper.succeed();
+    }
+
+    // Shrine with its Core at relative (3, 2, 3); the template is 8x6x8 so it fits.
+    private static final BlockPos CORE = new BlockPos(3, 2, 3);
+
+    private static void buildShrine(GameTestHelper helper) {
+        helper.setBlock(CORE.below(), AerieRegistry.PLINTH.get());
+        helper.setBlock(CORE, AerieRegistry.CORE.get());
+        for (int dx : new int[]{-2, 2}) {
+            for (int dz : new int[]{-2, 2}) {
+                BlockPos base = CORE.offset(dx, -1, dz);
+                helper.setBlock(base, AerieRegistry.PLINTH.get());
+                helper.setBlock(base.above(), AerieRegistry.COLUMN.get());
+                helper.setBlock(base.above(2), AerieRegistry.FOCUS.get());
+            }
+        }
+    }
+
+    private static CoreBlockEntity core(GameTestHelper helper) {
+        return (CoreBlockEntity) helper.getBlockEntity(CORE);
+    }
+
+    private static boolean ownerCanFly(GameTestHelper helper, UUID owner) {
+        return AerieNetworkData.get(helper.getLevel()).canFly(owner, new ChunkPos(helper.absolutePos(CORE)).toLong());
+    }
+
+    @GameTest(template = "empty")
+    public static void shrineValidates(GameTestHelper helper) {
+        buildShrine(helper);
+        helper.assertTrue(AerieMultiblocks.SHRINE.validate(helper.getLevel(), helper.absolutePos(CORE)) != null, "complete shrine did not validate");
+        // Unchecked cells are free for decoration.
+        helper.setBlock(CORE.offset(1, -1, 0), Blocks.STONE_BRICKS);
+        helper.setBlock(CORE.offset(0, 1, 1), Blocks.LANTERN);
+        helper.assertTrue(AerieMultiblocks.SHRINE.validate(helper.getLevel(), helper.absolutePos(CORE)) != null, "decoration broke the shrine");
+        helper.setBlock(CORE.offset(2, 1, 2), Blocks.AIR);
+        helper.assertTrue(AerieMultiblocks.SHRINE.validate(helper.getLevel(), helper.absolutePos(CORE)) == null, "shrine without a focus validated");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void chargedShrineGrantsAndBreakingRevokes(GameTestHelper helper) {
+        buildShrine(helper);
+        var be = core(helper);
+        UUID owner = UUID.randomUUID(); // tests share one world: never share an owner
+        be.ownership().load(owner, false);
+        int required = AerieConfig.CHARGE_TIME_SECONDS.get() * 20;
+        be.charge().load(required - 20, helper.absolutePos(CORE).asLong());
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ownerCanFly(helper, owner), "owner cannot fly after charge"))
+                .thenExecute(() -> helper.setBlock(CORE.offset(-2, 1, -2), Blocks.AIR))
+                .thenWaitUntil(() -> helper.assertFalse(ownerCanFly(helper, owner), "owner still flies with a broken shrine"))
+                .thenExecute(() -> helper.assertTrue(core(helper).charge().progress() == 0, "charge not reset"))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void redstonePausesWithoutReset(GameTestHelper helper) {
+        buildShrine(helper);
+        var be = core(helper);
+        UUID owner = UUID.randomUUID(); // tests share one world: never share an owner
+        be.ownership().load(owner, false);
+        int required = AerieConfig.CHARGE_TIME_SECONDS.get() * 20;
+        be.charge().load(required, helper.absolutePos(CORE).asLong());
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ownerCanFly(helper, owner), "charged core not active"))
+                .thenExecute(() -> helper.setBlock(CORE.east(), Blocks.REDSTONE_BLOCK))
+                .thenWaitUntil(() -> helper.assertFalse(ownerCanFly(helper, owner), "powered core still active"))
+                .thenExecute(() -> helper.assertTrue(core(helper).charge().progress() == required, "redstone changed the charge: " + core(helper).charge().progress() + " vs " + required))
+                .thenExecute(() -> helper.setBlock(CORE.east(), Blocks.AIR))
+                .thenWaitUntil(() -> helper.assertTrue(ownerCanFly(helper, owner), "core did not resume"))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void movedCoreLosesCharge(GameTestHelper helper) {
+        buildShrine(helper);
+        var be = core(helper);
+        UUID owner = UUID.randomUUID(); // tests share one world: never share an owner
+        be.ownership().load(owner, false);
+        int required = AerieConfig.CHARGE_TIME_SECONDS.get() * 20;
+        be.charge().load(required, helper.absolutePos(CORE).asLong() + 1); // attuned somewhere else
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(core(helper).charge().anchor() == helper.absolutePos(CORE).asLong(), "anchor not updated"))
+                .thenExecute(() -> helper.assertFalse(ownerCanFly(helper, owner), "moved core kept its charge"))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty")
+    public static void claimResetsCharge(GameTestHelper helper) {
+        buildShrine(helper);
+        var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        var be = core(helper);
+        UUID owner = UUID.randomUUID(); // tests share one world: never share an owner
+        be.ownership().load(owner, false);
+        be.charge().load(1000, helper.absolutePos(CORE).asLong());
+        helper.useBlock(CORE, player);
+        helper.assertTrue(player.getUUID().equals(be.ownership().owner()), "right-click did not claim");
+        helper.assertTrue(be.charge().progress() == 0, "claim did not reset charge");
         helper.succeed();
     }
 }

@@ -4,6 +4,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 
 @Mod(AerieMod.MOD_ID)
@@ -12,6 +13,7 @@ public final class AerieMod {
 
     public AerieMod(IEventBus modBus, ModContainer container) {
         AerieRegistry.register(modBus);
+        modBus.addListener((FMLCommonSetupEvent event) -> event.enqueueWork(AerieMultiblocks::register));
         container.registerConfig(ModConfig.Type.SERVER, AerieConfig.SPEC);
         if (FMLEnvironment.dist.isClient()) AerieClient.init(container);
     }
