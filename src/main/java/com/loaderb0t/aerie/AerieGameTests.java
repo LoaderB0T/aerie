@@ -1,16 +1,28 @@
 package com.loaderb0t.aerie;
 
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.gametest.framework.GameTest;
-import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForgeMod;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -142,6 +154,123 @@ public final class AerieGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(data.isConnected(helper.absolutePos(crown)), "relay did not connect"))
                 .thenExecute(() -> helper.setBlock(base.above(), Blocks.AIR))
                 .thenWaitUntil(() -> helper.assertFalse(data.isConnected(helper.absolutePos(crown)), "incomplete relay still connected"))
+                .thenSucceed();
+    }
+
+    /** Like GameTestHelper.makeMockServerPlayerInLevel, whose player always reports isCreative() == true. */
+    private static ServerPlayer survivalPlayer(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        var cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "aerie-test"), false);
+        ServerPlayer player = new ServerPlayer(server, helper.getLevel(), cookie.gameProfile(), cookie.clientInformation()) {
+            @Override
+            public boolean isSpectator() {
+                return false;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return false;
+            }
+        };
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.setGameMode(GameType.SURVIVAL); // the game-test server defaults to creative, which sets abilities.mayfly
+        return player;
+    }
+
+    /** A survival player standing above a fully charged shrine they own. */
+    private static ServerPlayer ownerAboveChargedShrine(GameTestHelper helper) {
+        buildShrine(helper);
+        ServerPlayer player = survivalPlayer(helper);
+        Vec3 at = helper.absoluteVec(Vec3.atCenterOf(CORE.above(2)));
+        player.teleportTo(at.x, at.y, at.z);
+        var be = core(helper);
+        be.ownership().load(player.getUUID(), false);
+        be.charge().load(AerieConfig.CHARGE_TIME_SECONDS.get() * 20, helper.absolutePos(CORE).asLong());
+        return player;
+    }
+
+    private static boolean hasAerieFlight(ServerPlayer player) {
+        return player.getAttribute(NeoForgeMod.CREATIVE_FLIGHT).hasModifier(FlightHandler.MODIFIER_ID);
+    }
+
+    private static void moveChunksAway(ServerPlayer player, int chunks) {
+        player.teleportTo(player.getX() + chunks * 16, player.getY(), player.getZ());
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void flightGrantedInAreaAndGraceOnLeaving(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AerieNetworkData.get(helper.getLevel()).canFly(player.getUUID(), player.chunkPosition().toLong()), "core not active"))
+                .thenExecute(() -> FlightHandler.check(player))
+                .thenExecute(() -> helper.assertTrue(hasAerieFlight(player) && player.mayFly(), "flight not granted in area"))
+                .thenExecute(() -> {
+                    player.getAbilities().flying = true;
+                    moveChunksAway(player, 3);
+                    FlightHandler.check(player);
+                })
+                .thenExecute(() -> helper.assertFalse(hasAerieFlight(player) || player.getAbilities().flying, "still flying outside the area"))
+                .thenExecute(() -> helper.assertTrue(player.hasEffect(MobEffects.SLOW_FALLING), "no slow-fall grace on leaving; effects=" + player.getActiveEffects() + " mayFly=" + player.mayFly()))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void monsterHitDropsFlightWithLockout(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    FlightHandler.check(player);
+                    helper.assertTrue(hasAerieFlight(player), "flight not granted");
+                })
+                .thenIdle(61) // new players are invulnerable for 60 ticks
+                .thenExecute(() -> {
+                    player.getAbilities().flying = true;
+                    // On Peaceful (the game-test default) monster damage to players is 0, so no damage event fires.
+                    helper.getLevel().getServer().setDifficulty(Difficulty.NORMAL, true);
+                    Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, CORE.above(3));
+                    helper.assertTrue(player.hurt(player.damageSources().mobAttack(zombie), 1f), "zombie hit was not applied");
+                })
+                .thenExecute(() -> helper.assertFalse(hasAerieFlight(player) || player.getAbilities().flying, "monster hit did not drop flight"))
+                .thenExecute(() -> helper.assertFalse(player.hasEffect(MobEffects.SLOW_FALLING), "combat drop must not give grace"))
+                .thenExecute(() -> FlightHandler.check(player))
+                .thenExecute(() -> helper.assertFalse(hasAerieFlight(player), "flight came back during lockout"))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void hittingMonsterDropsFlight(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    FlightHandler.check(player);
+                    helper.assertTrue(hasAerieFlight(player), "flight not granted");
+                })
+                .thenExecute(() -> {
+                    Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, CORE.above(3));
+                    zombie.hurt(player.damageSources().playerAttack(player), 1f);
+                })
+                .thenExecute(() -> helper.assertFalse(hasAerieFlight(player), "hitting a monster did not drop flight"))
+                .thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void otherFlightSourceIsKept(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    FlightHandler.check(player);
+                    helper.assertTrue(hasAerieFlight(player), "flight not granted");
+                })
+                .thenExecute(() -> {
+                    player.getAbilities().mayfly = true; // another mod's flight
+                    player.getAbilities().flying = true;
+                    moveChunksAway(player, 3);
+                    FlightHandler.check(player);
+                })
+                .thenExecute(() -> helper.assertTrue(!hasAerieFlight(player) && player.getAbilities().flying, "Aerie revoked someone else's flight"))
+                .thenExecute(() -> helper.assertTrue(player.getAbilities().mayfly, "Aerie touched abilities.mayfly"))
                 .thenSucceed();
     }
 
