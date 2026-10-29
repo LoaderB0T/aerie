@@ -127,6 +127,24 @@ public final class AerieGameTests {
                 .thenSucceed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void relayTotemConnectsAndDropsWhenBroken(GameTestHelper helper) {
+        buildShrine(helper);
+        core(helper).ownership().load(UUID.randomUUID(), false);
+        // Within 16 blocks of the Core, so in the core chunk or a (diagonal) neighbour: always connectable.
+        BlockPos base = new BlockPos(6, 1, 6);
+        BlockPos crown = base.above(2);
+        helper.setBlock(base, AerieRegistry.PLINTH.get());
+        helper.setBlock(base.above(), AerieRegistry.COLUMN.get());
+        helper.setBlock(crown, AerieRegistry.RELAY_CROWN.get());
+        var data = AerieNetworkData.get(helper.getLevel());
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(data.isConnected(helper.absolutePos(crown)), "relay did not connect"))
+                .thenExecute(() -> helper.setBlock(base.above(), Blocks.AIR))
+                .thenWaitUntil(() -> helper.assertFalse(data.isConnected(helper.absolutePos(crown)), "incomplete relay still connected"))
+                .thenSucceed();
+    }
+
     @GameTest(template = "empty")
     public static void claimResetsCharge(GameTestHelper helper) {
         buildShrine(helper);
