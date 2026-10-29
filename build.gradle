@@ -1,0 +1,95 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    // Patchouli's official maven.
+    exclusiveContent {
+        forRepository { maven { name = 'BlameJared'; url = 'https://maven.blamejared.com' } }
+        filter { includeGroup 'vazkii.patchouli' }
+    }
+}
+
+dependencies {
+    compileOnly "vazkii.patchouli:Patchouli:${patchouli_version}:api"
+    runtimeOnly "vazkii.patchouli:Patchouli:${patchouli_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    // Ship our licence inside the jar.
+    def licenseName = "LICENSE_${mod_id}" // captured now: the configuration cache can't read project props at execution
+    from('LICENSE') { rename { licenseName } }
+}
+
+// Optional: copy the built jar into a game instance's mods folder.
+//   gradlew installToProfile -PinstallDir="C:/path/to/instance/mods"
+// or set installDir in ~/.gradle/gradle.properties so it stays out of the repo.
+tasks.register('installToProfile', Copy) {
+    from tasks.named('jar')
+    into providers.gradleProperty('installDir')
+}
