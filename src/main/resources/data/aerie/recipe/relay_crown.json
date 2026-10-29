@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["PGP", "GMG", "PGP"],
+  "key": {"P": { "item": "minecraft:ender_pearl" }, "G": { "item": "minecraft:gold_ingot" }, "M": { "item": "minecraft:phantom_membrane" }},
+  "result": { "id": "aerie:relay_crown", "count": 1 }
+}

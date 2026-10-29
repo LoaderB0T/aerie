@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": { "end": "aerie:block/column_end", "side": "aerie:block/column_side" }
+}

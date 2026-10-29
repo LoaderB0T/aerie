@@ -25,6 +25,11 @@ neoForge {
         client {
             client()
         }
+        // Headless: loads all data (recipes, tags, loot tables, Patchouli books) and runs game tests, then exits.
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
     }
 
     mods {

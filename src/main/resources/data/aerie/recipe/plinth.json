@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["BBB", "BRB", "BBB"],
+  "key": {"B": { "item": "minecraft:polished_blackstone" }, "R": { "item": "minecraft:blaze_rod" }},
+  "result": { "id": "aerie:plinth", "count": 2 }
+}

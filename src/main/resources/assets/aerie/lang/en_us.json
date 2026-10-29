@@ -1,0 +1,32 @@
+{
+  "block.aerie.plinth": "Aerie Plinth",
+  "block.aerie.column": "Aerie Column",
+  "block.aerie.focus": "Aerie Focus",
+  "block.aerie.core": "Aerie Core",
+  "block.aerie.relay_crown": "Aerie Relay Crown",
+  "itemGroup.aerie": "Aerie",
+
+  "aerie.configuration.title": "Aerie",
+  "aerie.configuration.chargeTimeSeconds": "Attunement time (seconds)",
+  "aerie.configuration.combatLockoutSeconds": "Combat lockout (seconds)",
+  "aerie.configuration.leaveGraceSeconds": "Slow-fall grace (seconds)",
+  "aerie.configuration.maxRelayDistance": "Max relay distance (chunks)",
+  "aerie.configuration.diagonalAdjacency": "Diagonal relay neighbours",
+  "aerie.configuration.opPermissionLevel": "Operator permission level",
+  "aerie.configuration.borderParticles": "Border particles",
+  "aerie.configuration.checkIntervalTicks": "Flight check interval (ticks)",
+
+  "aerie.status.charging": "Charging %s%%",
+  "aerie.status.active": "Active — owner: %s",
+  "aerie.status.locked_suffix": " (locked)",
+  "aerie.status.incomplete": "Incomplete shrine",
+  "aerie.status.disabled": "Disabled by redstone",
+  "aerie.status.unowned": "No owner — right-click to claim",
+  "aerie.claimed": "You now own this Aerie Core. Attunement restarted.",
+  "aerie.locked": "Locked to %s",
+  "aerie.unlocked": "Unlocked",
+  "aerie.denied": "This Aerie Core is locked to %s",
+  "aerie.relay.incomplete": "Incomplete relay totem",
+  "aerie.relay.unconnected": "Relay: not connected",
+  "aerie.relay.connected": "Relay connected — owner: %s"
+}

@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["QMQ", "QGQ", "QGQ"],
+  "key": {"Q": { "item": "minecraft:quartz_pillar" }, "M": { "item": "minecraft:phantom_membrane" }, "G": { "item": "minecraft:gold_ingot" }},
+  "result": { "id": "aerie:column", "count": 2 }
+}

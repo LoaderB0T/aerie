@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["PDP", "DMD", "PDP"],
+  "key": {"P": { "item": "minecraft:ender_pearl" }, "D": { "item": "minecraft:diamond" }, "M": { "item": "minecraft:phantom_membrane" }},
+  "result": { "id": "aerie:core", "count": 1 }
+}
