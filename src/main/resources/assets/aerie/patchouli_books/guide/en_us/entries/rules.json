@@ -1,0 +1,16 @@
+{
+  "name": "Rules of the Sky",
+  "icon": "minecraft:feather",
+  "category": "aerie:aerie",
+  "sortnum": 2,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "$(li)Right-click a Core to claim it; claiming restarts attunement.$(li)Sneak-right-click as owner to lock or unlock it. Operators can unlock any Core.$(li)Only the owner flies."
+    },
+    {
+      "type": "patchouli:text",
+      "text": "$(li)Hitting a monster or being hit by one drops you instantly and blocks flight for 30 seconds.$(li)Leaving the area, or the shrine breaking, gives a few seconds of slow falling.$(li)A redstone signal into the Core pauses the whole network."
+    }
+  ]
+}

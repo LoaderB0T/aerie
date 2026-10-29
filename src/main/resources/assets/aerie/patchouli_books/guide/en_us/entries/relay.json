@@ -1,0 +1,19 @@
+{
+  "name": "Relay Totems",
+  "icon": "aerie:relay_crown",
+  "category": "aerie:aerie",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "A relay totem extends the flight area by one chunk. Place it in a chunk next to one that is already covered, up to five chunks from the Core.$(br2)Each relay belongs to the first Core it connects to, so nobody can borrow your chain."
+    },
+    {
+      "type": "patchouli:multiblock",
+      "name": "Relay Totem",
+      "multiblock_id": "aerie:relay",
+      "enable_visualize": true,
+      "text": "Plinth, Column, then a $(item)Relay Crown$() on top. Right-click the crown to see whether it is connected."
+    }
+  ]
+}

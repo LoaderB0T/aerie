@@ -3,6 +3,7 @@ package com.loaderb0t.aerie;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -25,6 +26,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForgeMod;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import vazkii.patchouli.api.PatchouliAPI;
 
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +53,18 @@ public final class AerieGameTests {
             helper.assertTrue(loot != LootTable.EMPTY, "missing loot table " + block);
         }
         helper.assertTrue(AerieRegistry.CORE.get().defaultBlockState().is(nonMovable), "core is not create:non_movable");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void guideBookCraftable(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        var recipe = server.getRecipeManager().byKey(id("guide"));
+        helper.assertTrue(recipe.isPresent(), "missing guide recipe");
+        var result = recipe.get().value().getResultItem(server.registryAccess());
+        var bookComponent = BuiltInRegistries.DATA_COMPONENT_TYPE.get(ResourceLocation.fromNamespaceAndPath("patchouli", "book"));
+        helper.assertTrue(bookComponent != null && id("guide").equals(result.get(bookComponent)), "guide recipe does not make the Aerie guide: " + result);
+        helper.assertTrue(PatchouliAPI.get().getMultiblock(id("shrine")) != null, "shrine multiblock not registered with Patchouli");
         helper.succeed();
     }
 

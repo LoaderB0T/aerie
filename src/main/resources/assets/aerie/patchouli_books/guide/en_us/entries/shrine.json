@@ -1,0 +1,19 @@
+{
+  "name": "The Shrine",
+  "icon": "aerie:core",
+  "category": "aerie:aerie",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Build the Four-Pillar Shrine: an $(item)Aerie Core$() on an $(item)Aerie Plinth$() in the middle, and a pillar of Plinth, $(item)Aerie Column$() and $(item)Aerie Focus$() on each corner of a 5x5 square.$(br2)The other blocks inside the square are free: decorate as you like."
+    },
+    {
+      "type": "patchouli:multiblock",
+      "name": "Four-Pillar Shrine",
+      "multiblock_id": "aerie:shrine",
+      "enable_visualize": true,
+      "text": "Right-click the Core to claim it. Once complete it attunes for about five minutes, then its owner can fly anywhere in the Core's chunk."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "aerie.book.name",
+  "landing_text": "aerie.book.landing",
+  "use_resource_pack": true,
+  "i18n": true,
+  "show_progress": false,
+  "creative_tab": "aerie:aerie"
+}
