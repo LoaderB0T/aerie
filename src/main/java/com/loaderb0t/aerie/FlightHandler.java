@@ -13,6 +13,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForgeMod;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.util.HashMap;
@@ -26,7 +27,10 @@ import java.util.UUID;
 public final class FlightHandler {
     static final ResourceLocation MODIFIER_ID = ResourceLocation.fromNamespaceAndPath(AerieMod.MOD_ID, "flight");
 
-    /** Server tick until which a player may not get Aerie flight. Kept across relogs so logging out can't skip it. */
+    /**
+     * World game time until which a player may not get Aerie flight. Game time is saved and shared by all
+     * dimensions; entries survive relogs (so logging out can't skip a lockout) and are cleared when the server stops.
+     */
     private static final Map<UUID, Long> lockoutUntil = new HashMap<>();
 
     private FlightHandler() {}
@@ -36,6 +40,11 @@ public final class FlightHandler {
         if (event.getEntity() instanceof ServerPlayer player && player.tickCount % AerieConfig.CHECK_INTERVAL_TICKS.get() == 0) {
             check(player);
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        lockoutUntil.clear(); // singleplayer keeps the JVM: don't carry lockouts into the next world
     }
 
     @SubscribeEvent
@@ -70,14 +79,14 @@ public final class FlightHandler {
     private static boolean lockedOut(ServerPlayer player) {
         Long until = lockoutUntil.get(player.getUUID());
         if (until == null) return false;
-        if (until > player.server.getTickCount()) return true;
+        if (until > player.serverLevel().getGameTime()) return true;
         lockoutUntil.remove(player.getUUID());
         return false;
     }
 
     /** Combat: drop Aerie flight instantly, no grace, and block it for the lockout time. */
     static void cutOff(ServerPlayer player) {
-        lockoutUntil.put(player.getUUID(), player.server.getTickCount() + AerieConfig.COMBAT_LOCKOUT_SECONDS.get() * 20L);
+        lockoutUntil.put(player.getUUID(), player.serverLevel().getGameTime() + AerieConfig.COMBAT_LOCKOUT_SECONDS.get() * 20L);
         AttributeInstance flight = player.getAttribute(NeoForgeMod.CREATIVE_FLIGHT);
         if (flight != null && flight.hasModifier(MODIFIER_ID)) {
             flight.removeModifier(MODIFIER_ID);

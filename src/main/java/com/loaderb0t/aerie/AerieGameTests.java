@@ -253,6 +253,26 @@ public final class AerieGameTests {
                 .thenSucceed();
     }
 
+    // Own batch: it jumps world time, which would time out tests running beside it.
+    @GameTest(template = "empty", timeoutTicks = 200, batch = "world_clock")
+    public static void lockoutFollowsSavedWorldTime(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        var worldData = helper.getLevel().getServer().getWorldData().overworldData();
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    FlightHandler.check(player);
+                    helper.assertTrue(hasAerieFlight(player), "flight not granted");
+                })
+                .thenExecute(() -> FlightHandler.cutOff(player))
+                .thenExecute(() -> FlightHandler.check(player))
+                .thenExecute(() -> helper.assertFalse(hasAerieFlight(player), "flight back during lockout"))
+                // Saved world time, not the per-session server tick counter, decides when the lockout ends.
+                .thenExecute(() -> worldData.setGameTime(worldData.getGameTime() + AerieConfig.COMBAT_LOCKOUT_SECONDS.get() * 20L + 1))
+                .thenExecute(() -> FlightHandler.check(player))
+                .thenExecute(() -> helper.assertTrue(hasAerieFlight(player), "flight did not return after the lockout"))
+                .thenSucceed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void hittingMonsterDropsFlight(GameTestHelper helper) {
         ServerPlayer player = ownerAboveChargedShrine(helper);
