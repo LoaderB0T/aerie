@@ -13,6 +13,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForgeMod;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -53,6 +54,26 @@ public final class FlightHandler {
         boolean byMonster = source.getEntity() instanceof Enemy || source.getDirectEntity() instanceof Enemy;
         if (event.getEntity() instanceof ServerPlayer player && byMonster) cutOff(player);
         else if (event.getEntity() instanceof Enemy && source.getEntity() instanceof ServerPlayer player) cutOff(player);
+    }
+
+    @SubscribeEvent
+    public static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) onLogin(player);
+    }
+
+    /**
+     * abilities.flying is saved but the flight modifier is not, so a player who logged out mid-air would drop on
+     * their first tick. Re-check at once; if Aerie no longer lets them fly, let them float down instead.
+     */
+    static void onLogin(ServerPlayer player) {
+        if (player.isCreative() || player.isSpectator()) return;
+        boolean wasFlying = player.getAbilities().flying;
+        check(player);
+        if (wasFlying && !player.mayFly()) {
+            stopFlyingIfNoOtherSource(player);
+            int grace = AerieConfig.LEAVE_GRACE_SECONDS.get();
+            if (grace > 0) player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, grace * 20));
+        }
     }
 
     static void check(ServerPlayer player) {

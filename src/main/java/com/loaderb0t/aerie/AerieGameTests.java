@@ -253,6 +253,27 @@ public final class AerieGameTests {
                 .thenSucceed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void loginMidAirKeepsOrGracesFlight(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AerieNetworkData.get(helper.getLevel()).canFly(player.getUUID(), player.chunkPosition().toLong()), "core not active"))
+                // A relog loads abilities.flying but not the transient modifier.
+                .thenExecute(() -> {
+                    player.getAbilities().flying = true;
+                    FlightHandler.onLogin(player);
+                })
+                .thenExecute(() -> helper.assertTrue(hasAerieFlight(player) && player.getAbilities().flying, "logged in mid-air inside the area but not flying"))
+                .thenExecute(() -> {
+                    player.getAttribute(NeoForgeMod.CREATIVE_FLIGHT).removeModifier(FlightHandler.MODIFIER_ID);
+                    moveChunksAway(player, 3);
+                    FlightHandler.onLogin(player);
+                })
+                .thenExecute(() -> helper.assertFalse(player.getAbilities().flying, "still flying after logging in outside the area"))
+                .thenExecute(() -> helper.assertTrue(player.hasEffect(MobEffects.SLOW_FALLING), "no slow-fall grace after logging in outside the area"))
+                .thenSucceed();
+    }
+
     // Own batch: it jumps world time, which would time out tests running beside it.
     @GameTest(template = "empty", timeoutTicks = 200, batch = "world_clock")
     public static void lockoutFollowsSavedWorldTime(GameTestHelper helper) {
