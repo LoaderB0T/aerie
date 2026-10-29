@@ -22,7 +22,11 @@ class NetworkTest {
     }
 
     static RelayNode relay(int cx, int cz) {
-        return new RelayNode(ck(cx, cz), ck(cx, cz), true);
+        return relay(cx, cz, null);
+    }
+
+    static RelayNode relay(int cx, int cz, UUID placer) {
+        return new RelayNode(ck(cx, cz), ck(cx, cz), true, placer);
     }
 
     Network.Result run(List<CoreNode> cores, List<RelayNode> relays) {
@@ -106,7 +110,7 @@ class NetworkTest {
 
     @Test
     void incompleteRelayNeitherCoversNorBridges() {
-        var incomplete = new RelayNode(ck(1, 0), ck(1, 0), false);
+        var incomplete = new RelayNode(ck(1, 0), ck(1, 0), false, null);
         var r = run(List.of(core(0, 0, x, true)), List.of(incomplete, relay(2, 0)));
         assertEquals(Set.of(ck(0, 0)), r.flightChunks().get(x));
     }
@@ -125,6 +129,18 @@ class NetworkTest {
 
         var restored = run(List.of(a, b), List.of(relay(1, 0), relay(2, 0)));
         assertEquals(Set.of(ck(0, 0), ck(1, 0), ck(2, 0)), restored.flightChunks().get(x));
+    }
+
+    @Test
+    void freeRelayPrefersItsPlacersCore() {
+        // y's Core sorts first and touches both relays, but x built them (e.g. rebuilt after breaking).
+        var a = core(0, 0, x, true);
+        var b = new CoreNode(-100, ck(2, 1), y, true);
+        var r = run(List.of(a, b), List.of(relay(1, 0, x), relay(2, 0, x)));
+        assertEquals(ck(0, 0), bindings.get(ck(1, 0)));
+        assertEquals(ck(0, 0), bindings.get(ck(2, 0)));
+        assertEquals(Set.of(ck(0, 0), ck(1, 0), ck(2, 0)), r.flightChunks().get(x));
+        assertEquals(Set.of(ck(2, 1)), r.flightChunks().get(y));
     }
 
     @Test

@@ -7,7 +7,8 @@ public final class Network {
     /** owner may be null: an unowned Core covers nothing. */
     public record CoreNode(long pos, long chunk, UUID owner, boolean active) {}
 
-    public record RelayNode(long pos, long chunk, boolean complete) {}
+    /** placer may be null (unknown): such a relay binds by Core order only. */
+    public record RelayNode(long pos, long chunk, boolean complete, UUID placer) {}
 
     public record Result(Map<UUID, Set<Long>> flightChunks, Set<Long> connectedRelays) {}
 
@@ -40,27 +41,18 @@ public final class Network {
             if (r.complete()) relaysByChunk.computeIfAbsent(r.chunk(), k -> new ArrayList<>()).add(r);
         }
 
-        Map<UUID, Set<Long>> flight = new HashMap<>();
-        Set<Long> connected = new HashSet<>();
         List<CoreNode> sorted = new ArrayList<>(cores);
         sorted.sort(Comparator.comparingLong(CoreNode::pos));
 
+        // Pass 1: free relays go to a Core of whoever placed them, so a neighbour's network can't take them.
+        Set<Long> ignored = new HashSet<>();
+        for (CoreNode core : sorted) reach(core, true, relaysByChunk, bindings, ignored, maxDistance, diagonal);
+
+        // Pass 2: remaining free relays go to the first Core (by position) that reaches them; compute coverage.
+        Map<UUID, Set<Long>> flight = new HashMap<>();
+        Set<Long> connected = new HashSet<>();
         for (CoreNode core : sorted) {
-            Set<Long> reached = new HashSet<>();
-            Deque<Long> queue = new ArrayDeque<>();
-            reached.add(core.chunk());
-            queue.add(core.chunk());
-            connectRelaysIn(core.chunk(), core, relaysByChunk, bindings, connected);
-            while (!queue.isEmpty()) {
-                long chunk = queue.poll();
-                for (long next : neighbours(chunk, diagonal)) {
-                    if (reached.contains(next) || chebyshev(next, core.chunk()) > maxDistance) continue;
-                    if (connectRelaysIn(next, core, relaysByChunk, bindings, connected)) {
-                        reached.add(next);
-                        queue.add(next);
-                    }
-                }
-            }
+            Set<Long> reached = reach(core, false, relaysByChunk, bindings, connected, maxDistance, diagonal);
             if (core.active() && core.owner() != null) {
                 flight.computeIfAbsent(core.owner(), k -> new HashSet<>()).addAll(reached);
             }
@@ -68,13 +60,38 @@ public final class Network {
         return new Result(flight, connected);
     }
 
-    /** Connects every relay in the chunk that is free or already this core's. Returns true if any was. */
-    private static boolean connectRelaysIn(long chunk, CoreNode core, Map<Long, List<RelayNode>> relaysByChunk,
+    /** BFS from the core's chunk over chunks holding relays it may use. Returns the chunks reached. */
+    private static Set<Long> reach(CoreNode core, boolean placerOnly, Map<Long, List<RelayNode>> relaysByChunk,
+                                   Map<Long, Long> bindings, Set<Long> connected, int maxDistance, boolean diagonal) {
+        Set<Long> reached = new HashSet<>();
+        Deque<Long> queue = new ArrayDeque<>();
+        reached.add(core.chunk());
+        queue.add(core.chunk());
+        connectRelaysIn(core.chunk(), core, placerOnly, relaysByChunk, bindings, connected);
+        while (!queue.isEmpty()) {
+            long chunk = queue.poll();
+            for (long next : neighbours(chunk, diagonal)) {
+                if (reached.contains(next) || chebyshev(next, core.chunk()) > maxDistance) continue;
+                if (connectRelaysIn(next, core, placerOnly, relaysByChunk, bindings, connected)) {
+                    reached.add(next);
+                    queue.add(next);
+                }
+            }
+        }
+        return reached;
+    }
+
+    /**
+     * Connects every relay in the chunk that is already this core's, or free (when placerOnly, only if the
+     * core's owner placed it). Returns true if any was.
+     */
+    private static boolean connectRelaysIn(long chunk, CoreNode core, boolean placerOnly, Map<Long, List<RelayNode>> relaysByChunk,
                                            Map<Long, Long> bindings, Set<Long> connected) {
         boolean any = false;
         for (RelayNode r : relaysByChunk.getOrDefault(chunk, List.of())) {
             Long bound = bindings.get(r.pos());
             if (bound != null && bound != core.pos()) continue;
+            if (bound == null && placerOnly && (r.placer() == null || !r.placer().equals(core.owner()))) continue;
             bindings.put(r.pos(), core.pos());
             connected.add(r.pos());
             any = true;

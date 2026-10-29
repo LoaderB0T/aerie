@@ -19,10 +19,12 @@ import java.util.*;
 public final class AerieNetworkData extends SavedData {
     private record CoreRecord(@Nullable UUID owner, String ownerName, boolean active) {}
 
+    private record RelayRecord(boolean complete, @Nullable UUID placer) {}
+
     private static final Factory<AerieNetworkData> FACTORY = new Factory<>(AerieNetworkData::new, AerieNetworkData::load, null);
 
     private final Map<Long, CoreRecord> cores = new HashMap<>();
-    private final Map<Long, Boolean> relays = new HashMap<>();
+    private final Map<Long, RelayRecord> relays = new HashMap<>();
     private final Map<Long, Long> bindings = new HashMap<>();
 
     private @Nullable Network.Result result;
@@ -42,8 +44,9 @@ public final class AerieNetworkData extends SavedData {
         if (cores.remove(pos.asLong()) != null) invalidate();
     }
 
-    public void putRelay(BlockPos pos, boolean complete) {
-        if (!Objects.equals(relays.put(pos.asLong(), complete), complete)) invalidate();
+    public void putRelay(BlockPos pos, boolean complete, @Nullable UUID placer) {
+        var record = new RelayRecord(complete, placer);
+        if (!record.equals(relays.put(pos.asLong(), record))) invalidate();
     }
 
     public void removeRelay(BlockPos pos) {
@@ -78,7 +81,7 @@ public final class AerieNetworkData extends SavedData {
         List<Network.CoreNode> coreNodes = new ArrayList<>();
         cores.forEach((pos, c) -> coreNodes.add(new Network.CoreNode(pos, chunkOf(pos), c.owner(), c.active())));
         List<Network.RelayNode> relayNodes = new ArrayList<>();
-        relays.forEach((pos, complete) -> relayNodes.add(new Network.RelayNode(pos, chunkOf(pos), complete)));
+        relays.forEach((pos, r) -> relayNodes.add(new Network.RelayNode(pos, chunkOf(pos), r.complete(), r.placer())));
         Map<Long, Long> before = new HashMap<>(bindings);
         result = Network.recompute(coreNodes, relayNodes, bindings, distance, diagonal);
         resultDistance = distance;
@@ -103,10 +106,11 @@ public final class AerieNetworkData extends SavedData {
             coreList.add(t);
         });
         ListTag relayList = new ListTag();
-        relays.forEach((pos, complete) -> {
+        relays.forEach((pos, r) -> {
             CompoundTag t = new CompoundTag();
             t.putLong("Pos", pos);
-            t.putBoolean("Complete", complete);
+            t.putBoolean("Complete", r.complete());
+            if (r.placer() != null) t.putUUID("Placer", r.placer());
             Long core = bindings.get(pos);
             if (core != null) t.putLong("Core", core);
             relayList.add(t);
@@ -125,7 +129,7 @@ public final class AerieNetworkData extends SavedData {
         }
         for (Tag raw : tag.getList("Relays", Tag.TAG_COMPOUND)) {
             CompoundTag t = (CompoundTag) raw;
-            data.relays.put(t.getLong("Pos"), t.getBoolean("Complete"));
+            data.relays.put(t.getLong("Pos"), new RelayRecord(t.getBoolean("Complete"), t.hasUUID("Placer") ? t.getUUID("Placer") : null));
             if (t.contains("Core")) data.bindings.put(t.getLong("Pos"), t.getLong("Core"));
         }
         return data;
