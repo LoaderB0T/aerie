@@ -1,6 +1,5 @@
 package com.loaderb0t.aerie;
 
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -9,7 +8,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.level.ChunkPos;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForgeMod;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
@@ -94,7 +92,7 @@ public final class FlightHandler {
                 player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, grace * 20));
             }
         }
-        if (eligible && player.getAbilities().flying && AerieConfig.BORDER_PARTICLES.get()) borderParticles(player, data);
+        if (eligible && player.getAbilities().flying && AerieConfig.BORDER_PARTICLES.get()) AerieParticles.border(player, data);
     }
 
     private static boolean lockedOut(ServerPlayer player) {
@@ -119,27 +117,6 @@ public final class FlightHandler {
         if (player.getAbilities().flying && !player.mayFly()) {
             player.getAbilities().flying = false;
             player.onUpdateAbilities();
-        }
-    }
-
-    /** Particles on each chunk edge within 4 blocks that borders an uncovered chunk; only this player sees them. */
-    private static void borderParticles(ServerPlayer player, AerieNetworkData data) {
-        ChunkPos chunk = player.chunkPosition();
-        double localX = player.getX() - chunk.getMinBlockX();
-        double localZ = player.getZ() - chunk.getMinBlockZ();
-        int[][] sides = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-        double[] distances = {localX, 16 - localX, localZ, 16 - localZ};
-        var random = player.getRandom();
-        for (int i = 0; i < 4; i++) {
-            int dx = sides[i][0], dz = sides[i][1];
-            if (distances[i] > 4 || data.canFly(player.getUUID(), ChunkPos.asLong(chunk.x + dx, chunk.z + dz))) continue;
-            for (int n = 0; n < 6; n++) {
-                double along = (random.nextDouble() * 2 - 1) * 4;
-                double y = player.getY() + 1 + (random.nextDouble() * 2 - 1) * 3;
-                double x = dx != 0 ? (dx < 0 ? chunk.getMinBlockX() : chunk.getMaxBlockX() + 1) : player.getX() + along;
-                double z = dz != 0 ? (dz < 0 ? chunk.getMinBlockZ() : chunk.getMaxBlockZ() + 1) : player.getZ() + along;
-                player.serverLevel().sendParticles(player, ParticleTypes.END_ROD, true, x, y, z, 1, 0, 0, 0, 0);
-            }
         }
     }
 }

@@ -2,17 +2,13 @@ package com.loaderb0t.aerie;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
 
 public final class CoreBlockEntity extends BlockEntity {
     private final Ownership ownership = new Ownership();
@@ -43,7 +39,7 @@ public final class CoreBlockEntity extends BlockEntity {
     static void serverTick(Level level, BlockPos pos, BlockState state, CoreBlockEntity be) {
         ServerLevel serverLevel = (ServerLevel) level;
         long time = level.getGameTime();
-        if (be.attuning && time % 4 == 0) be.chargeParticles(serverLevel);
+        if (be.attuning && time % 4 == 0) AerieParticles.charging(serverLevel, pos, be.charge.fraction(requiredTicks()));
         if (time % 20 != 0) return;
 
         int required = requiredTicks();
@@ -51,30 +47,13 @@ public final class CoreBlockEntity extends BlockEntity {
         int before = be.charge.progress();
         boolean complete = be.complete();
         boolean powered = level.hasNeighborSignal(pos);
-        if (be.charge.tick(20, complete, powered, required) == Charge.Event.COMPLETED) {
-            serverLevel.playSound(null, pos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1f, 1f);
-            Vec3 c = pos.getCenter();
-            serverLevel.sendParticles(ParticleTypes.END_ROD, c.x, c.y, c.z, 40, 0.5, 0.5, 0.5, 0.1);
-        }
+        if (be.charge.tick(20, complete, powered, required) == Charge.Event.COMPLETED) AerieParticles.attuned(serverLevel, pos);
         boolean charged = be.charge.charged(required);
+        boolean active = complete && charged && !powered;
         be.attuning = complete && !powered && !charged;
-        AerieNetworkData.get(serverLevel).putCore(pos, be.ownership.owner(), be.ownerName, complete && charged && !powered);
+        if (active) AerieParticles.active(serverLevel, pos);
+        AerieNetworkData.get(serverLevel).putCore(pos, be.ownership.owner(), be.ownerName, active);
         if (moved || before != be.charge.progress()) be.setChanged();
-    }
-
-    /** Purple motes drifting from each Focus into the Core, denser as the charge rises. */
-    private void chargeParticles(ServerLevel level) {
-        int count = 1 + (int) (charge.fraction(requiredTicks()) * 6);
-        Vec3 core = worldPosition.getCenter();
-        for (int dx : new int[]{-2, 2}) {
-            for (int dz : new int[]{-2, 2}) {
-                Vec3 focus = worldPosition.offset(dx, 1, dz).getCenter();
-                for (int i = 0; i < count; i++) {
-                    Vec3 p = focus.lerp(core, level.random.nextDouble());
-                    level.sendParticles(ParticleTypes.PORTAL, p.x, p.y, p.z, 1, 0, 0, 0, 0);
-                }
-            }
-        }
     }
 
     void use(Player player) {
