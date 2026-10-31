@@ -15,15 +15,19 @@ public final class AerieMultiblocks {
         var api = PatchouliAPI.get();
         // Layers top to bottom; '_' is any block (Patchouli's ' ' means air), '0' is the centre.
         // Unchecked cells stay free so players can decorate inside the shrine.
+        // Patchouli's ghost preview assumes the centre is in the bottom layer; offsetView lowers the view anchor by
+        // the layers below our centre so the preview stands on the clicked block (validation is unaffected).
         SHRINE = api.registerMultiblock(id("shrine"), api.makeMultiblock(new String[][]{
                         {"F___F", "_____", "_____", "_____", "F___F"},
                         {"K___K", "_____", "__0__", "_____", "K___K"},
                         {"P___P", "_____", "__P__", "_____", "P___P"}},
                 'F', AerieRegistry.FOCUS.get(), 'K', AerieRegistry.COLUMN.get(),
-                'P', AerieRegistry.PLINTH.get(), '0', AerieRegistry.CORE.get()).setSymmetrical(true));
+                'P', AerieRegistry.PLINTH.get(), '0', AerieRegistry.CORE.get())
+                .setSymmetrical(true).offsetView(0, -1, 0));
         RELAY = api.registerMultiblock(id("relay"), api.makeMultiblock(new String[][]{{"0"}, {"K"}, {"P"}},
                 'K', AerieRegistry.COLUMN.get(), 'P', AerieRegistry.PLINTH.get(),
-                '0', AerieRegistry.RELAY_CROWN.get()).setSymmetrical(true));
+                '0', AerieRegistry.RELAY_CROWN.get())
+                .setSymmetrical(true).offsetView(0, -2, 0));
     }
 
     private static ResourceLocation id(String path) {

@@ -21,6 +21,7 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForgeMod;
@@ -53,6 +54,18 @@ public final class AerieGameTests {
             helper.assertTrue(loot != LootTable.EMPTY, "missing loot table " + block);
         }
         helper.assertTrue(AerieRegistry.CORE.get().defaultBlockState().is(nonMovable), "core is not create:non_movable");
+        helper.succeed();
+    }
+
+    /** The guide's ghost preview, anchored by right-clicking a floor block, must stand on that block, not sink into it. */
+    @GameTest(template = "empty")
+    public static void previewStandsOnClickedBlock(GameTestHelper helper) {
+        BlockPos clicked = helper.absolutePos(new BlockPos(3, 0, 3));
+        for (var entry : java.util.Map.of("shrine", AerieMultiblocks.SHRINE, "relay", AerieMultiblocks.RELAY).entrySet()) {
+            var preview = entry.getValue().simulate(helper.getLevel(), clicked, Rotation.NONE, true).getSecond();
+            int lowest = preview.stream().mapToInt(r -> r.getWorldPosition().getY()).min().orElseThrow();
+            helper.assertTrue(lowest == clicked.getY() + 1, entry.getKey() + " preview starts at y " + lowest + ", expected " + (clicked.getY() + 1));
+        }
         helper.succeed();
     }
 
