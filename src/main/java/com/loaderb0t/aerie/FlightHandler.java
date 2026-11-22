@@ -105,6 +105,9 @@ public final class FlightHandler {
 
     /** Combat: drop Aerie flight instantly, no grace, and block it for the lockout time. */
     static void cutOff(ServerPlayer player) {
+        // Machines (CC:Tweaked turtles, deployers) act as fake players that share their owner's UUID;
+        // their fights must not lock out the real player.
+        if (player.isFakePlayer()) return;
         lockoutUntil.put(player.getUUID(), player.serverLevel().getGameTime() + AerieConfig.COMBAT_LOCKOUT_SECONDS.get() * 20L);
         AttributeInstance flight = player.getAttribute(NeoForgeMod.CREATIVE_FLIGHT);
         if (flight != null && flight.hasModifier(MODIFIER_ID)) {

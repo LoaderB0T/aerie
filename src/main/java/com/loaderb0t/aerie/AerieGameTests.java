@@ -25,6 +25,7 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForgeMod;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import vazkii.patchouli.api.PatchouliAPI;
@@ -320,6 +321,25 @@ public final class AerieGameTests {
                     zombie.hurt(player.damageSources().playerAttack(player), 1f);
                 })
                 .thenExecute(() -> helper.assertFalse(hasAerieFlight(player), "hitting a monster did not drop flight"))
+                .thenSucceed();
+    }
+
+    /** Machines that attack as a fake player with the owner's profile (CC:Tweaked turtles, deployers) are not the owner fighting. */
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void fakePlayerAttackKeepsOwnersFlight(GameTestHelper helper) {
+        ServerPlayer player = ownerAboveChargedShrine(helper);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    FlightHandler.check(player);
+                    helper.assertTrue(hasAerieFlight(player), "flight not granted");
+                })
+                .thenExecute(() -> {
+                    ServerPlayer turtle = FakePlayerFactory.get(helper.getLevel(), new GameProfile(player.getUUID(), "[turtle]"));
+                    Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, CORE.above(3));
+                    helper.assertTrue(zombie.hurt(turtle.damageSources().playerAttack(turtle), 1f), "turtle hit was not applied");
+                    FlightHandler.check(player);
+                })
+                .thenExecute(() -> helper.assertTrue(hasAerieFlight(player), "a fake player's attack dropped the owner's flight"))
                 .thenSucceed();
     }
 
